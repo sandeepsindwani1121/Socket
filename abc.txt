@@ -1,0 +1,222 @@
+const express=require('express');
+const socketIO=require('socket.io');
+const http=require('http')
+const port=process.env.PORT||3000
+var app=express();
+const path=require('path');
+let server=http.createServer(app);
+var io=socketIO(server);
+const formatMessage = require('./formatDate');
+var alert = require('alert');
+
+const { MapDeviceWithUser, getActiveDeviceUser, RemoveDeviceFromUser, CheckDeviceTakenByAnyUser} = require('./helper');
+
+
+  // Set public directory
+app.use(express.static(path.join(__dirname)));
+// make connection with user from server side
+io.on('connection', (socket)=>{
+  // // listen for message from user
+
+  debugger;
+
+
+  socket.on('checkdevicecontrol',({username,device})=>{
+    debugger
+    const controlUser=CheckDeviceTakenByAnyUser(device);
+    console.log(controlUser);
+   if(controlUser==undefined || controlUser==null){
+    const user=MapDeviceWithUser(socket.id,username,device);
+    socket.join(user);
+    // socket.broadcast.emit('message',`${device} is controlled by ${username}.` );
+   }
+   else{
+        const user1=MapDeviceWithUser(socket.id,username,'');
+        socket.join(user1);
+        console.log(username);
+       //socket.broadcast.to(controlUser.username).emit('takecontrolmessage',`${username} want the control on ${device}` );
+       if(controlUser.username!=username){
+        //alert(`${device} is controlled by ${controlUser.username}.`);
+      //  alert(`${controlUser.username}: `+controlUser.id);
+      //  alert(`${user1.username}: `+user1.id);
+        // setTimeout(() => {
+          io.to(user1.id).emit('message',`${device} is controlled by ${controlUser.username}.` );
+          io.to(controlUser.id).emit('takecontrolmessage',{message:`${username} want the control on ${device}`,controlUser:controlUser,newUser:newUser} );
+        // }, 2000);  
+       }
+      
+
+      //client.emit("your message");
+      //  io.to(controlUser.username)
+
+     //}
+   }
+
+});
+
+ socket.on('RemoveDeviceFromUser',({controlUser, newUser})=>{
+  const user1=RemoveDeviceFromUser(controlUser.id,controlUser.device);
+  //Add new User
+  RemoveUserWithoutDevice(newUser);
+  const user=MapDeviceWithUser(socket.id,newUser.username,device);
+  socket.join(user);
+ });
+
+});
+  
+server.listen(port);
+
+
+helper
+
+const users = [];
+
+
+function MapDeviceWithUser(id, username, device) {
+  const user = { id, username, device };
+  if(users.indexOf(x=>x.id==id && x.device==device)==-1)
+     users.push(user);
+  return user;
+}
+
+function RemoveDeviceFromUser(id,device){
+   const index = users.findIndex(user => user.id === id && user.device==device);
+   if (index !== -1) {
+     return users.splice(index, 1)[0];
+   }  
+}
+
+function getActiveDeviceUser(username) {
+  return users.find(user => user.id === id);
+}
+
+function CheckDeviceTakenByAnyUser(device) {
+ 
+  if(users.indexOf(user=>user.device==device)>=-1)
+  return users.find(user => user.device === device);
+  else
+  return null;
+}
+
+function RemoveUserWithoutDevice(newUser){
+  const index = users.findIndex(user => user.id === newUser.id || user.username==newUser.username);
+   if (index !== -1) {
+     return users.splice(index, 1)[0];
+   }  
+}
+
+
+module.exports = {
+  MapDeviceWithUser,
+  getActiveDeviceUser,
+  RemoveDeviceFromUser,
+  CheckDeviceTakenByAnyUser,
+  RemoveUserWithoutDevice
+};
+
+
+device
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css"
+    integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk="
+    crossorigin="anonymous"
+  />
+
+  <title>Notification App</title>
+</head>
+<body>
+  <div class="device-container">
+    <header class="device-header">
+      <h1><i class="fas fa-kiwi-bird"></i> Device Notification </h1>
+      <a href="index.html" class="btn" id="leave-btn">Leave Room</a>
+    </header>
+
+    <main class="device-main">
+      <div class="device-sidebar">
+        <h2 id="device-name"></h2>
+        <h3><i class="fas fa-user"></i> Online</h3>
+        <ul id="users">
+        </ul>
+      </div>
+      <div class="device-messages">
+      </div>
+    </main>
+    
+    <div class="device-form-container">
+      <form id="device-form">
+        <button id="btnDevice1" class="btn-plane" onclick="javascript:TakeControl('device1')"><i class="fas fa-paper-plane"></i>Device1</button> 
+        <button id="btnDevice2" class="btn-plane" onclick="javascript:TakeControl('device2')"><i class="fas fa-paper-plane"></i>Device2</button>
+      </form>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" type="text/js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qs/6.9.2/qs.min.js" integrity="sha256-TDxXjkAUay70ae/QJBEpGKkpVslXaHHayklIVglFRT4="  crossorigin="anonymous"></script>
+   <script src="/socket.io/socket.io.js"></script>
+ 
+  <script>
+  const deviceForm = document.getElementById('device-form');
+  const deviceMessages = document.querySelector('.device-messages');
+  const roomName = document.getElementById('device-name');
+  const userList = document.getElementById('users');
+  const {username}=Qs.parse(location.search,{ ignoreQueryPrefix:true });
+  
+  const socket = io();
+   // connection with server
+  socket.on('connect', function(){
+    console.log('Connected to Server')
+  });
+   
+
+
+  const TakeControl=(device)=>{
+     event.preventDefault();
+     socket.emit('checkdevicecontrol', {username,device});
+  }
+
+     socket.on('message', function(data){
+       const div=document.createElement('div');
+       div.innerText=data;
+      deviceMessages.append(div);
+     });
+
+    socket.on('takecontrolmessage',(message,controlUser,newUser)=>{
+     console.log(message.message);  
+      if(confirm(message.message)){
+        //Remove control from 
+          socket.emit('RemoveDeviceFromUser',{controlUser,newUser});
+      }
+
+    });
+
+
+    
+//      //get current users
+//      socket.on('AllUserMessage',(message)=>{
+//       const div=document.createElement('div');
+//        div.innerText=message;
+//       deviceMessages.appendChild(div);
+//      });
+
+//     socket.on('roomUser',(roomData)=>{
+//       // debugger
+//       let users=roomData.users;
+//       let roomName=roomData.room;
+//       console.log({users})
+//       userList.innerHTML = '';
+//       users.forEach((user) => {
+//         const li = document.createElement('li');
+//         li.innerText = user.username;
+//         userList.appendChild(li);
+//       });
+//     });
+</script>
+</body>
+</html>
+
